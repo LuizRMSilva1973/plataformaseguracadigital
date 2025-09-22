@@ -59,6 +59,11 @@ Limites e próximos passos
 - PDF: gerar a partir do HTML (WeasyPrint) quando libs do sistema estiverem disponíveis.
 - Autenticação de painel (usuários) — colocar por trás de SSO/Keycloak/Next.js + JWT.
 
+Relatórios (HTML/PDF)
+- HTML sempre é gerado.
+- PDF: por padrão REPORT_PDF=true no `.env.example`. Em ambientes sem libs de sistema, defina `REPORT_PDF=false`.
+- A imagem Docker já instala as libs necessárias (libcairo, pango, gdk-pixbuf, fontes).
+
 Docker Compose (API + Postgres)
 - `docker-compose up --build`
 - API em `http://localhost:8000`, banco Postgres persistido em volume `dbdata`.
@@ -69,3 +74,7 @@ Agendamentos
 Notificações
 - E‑mail: configure SMTP_* no `.env`. Incidentes críticos/altos geram notificações.
 - WhatsApp/Telegram/Webhooks: endpoints stubs em `api/notifications.py` podem ser estendidos (não ativados por padrão neste MVP).
+
+CI
+- GitHub Actions executa testes (pytest) a cada push/PR em `main`.
+- Build Docker (sem push) para validar a imagem em cada push/PR.
