@@ -14,6 +14,7 @@ from .schemas import IngestBatchIn, AgentRegisterIn, ScoreOut, EventIn
 from .security import require_tenant, get_db, require_admin
 from .auth import create_user, verify_password, create_jwt
 from .actions import block_ip
+from .reporting import generate_and_send_latest
 from .ratelimit import check_rate
 from .reputation import get_ip_reputation
 from .notifications import send_email
@@ -383,6 +384,15 @@ def list_reports(tenant: Tenant = Depends(require_tenant), db: Session = Depends
             "score": r.score,
         })
     return {"items": items}
+
+
+@app.post("/v1/reports/send_latest")
+def send_latest_report(tenant: Tenant = Depends(require_tenant), db: Session = Depends(get_db)):
+    res = generate_and_send_latest(db, tenant.id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error", "send failed"))
+    rel = res["html_path"].split("data/")[-1]
+    return {"ok": True, "url_html": f"/static/{rel}", "pdf": bool(res.get("pdf_path"))}
 
 
 def _ensure_checklist(db: Session, tenant_id: str):
