@@ -1,0 +1,38 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: digitalsec
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/digitalsec
+      API_SECRET: ${API_SECRET:-change-me}
+      INGEST_RATE_LIMIT_PER_MIN: ${INGEST_RATE_LIMIT_PER_MIN:-600}
+      SCORE_DEFAULT_WINDOW_DAYS: ${SCORE_DEFAULT_WINDOW_DAYS:-7}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      ABUSEIPDB_KEY: ${ABUSEIPDB_KEY:-}
+      IPINFO_KEY: ${IPINFO_KEY:-}
+      SHODAN_KEY: ${SHODAN_KEY:-}
+      IP_REP_TTL_SEC: ${IP_REP_TTL_SEC:-86400}
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  dbdata:
+

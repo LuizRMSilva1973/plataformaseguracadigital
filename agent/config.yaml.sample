@@ -1,0 +1,6 @@
+api_base: "http://localhost:8000"
+tenant_id: "demo"
+token: "demo-token"
+agent_id: "AG-DEMO-LOCAL"
+interval_sec: 60
+

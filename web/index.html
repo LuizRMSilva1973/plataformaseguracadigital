@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DigitalSec — Painel</title>
+  <style>
+    :root{ --bg:#0b1220; --panel:#0e1628; --text:#e6edf3; --muted:#8b97a6; --accent:#4f8cff; --ok:#1fbf75; --warn:#f8c32c; --crit:#ff5c5c; --card:#121a2b; }
+    [data-theme="light"]{ --bg:#f6f8fa; --panel:#ffffff; --text:#0a0c10; --muted:#57606a; --accent:#0a66ff; --ok:#16a34a; --warn:#ca8a04; --crit:#dc2626; --card:#ffffff; }
+    html,body{ height:100%; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    header { background: var(--panel); color: var(--text); padding: 12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; border-bottom:1px solid rgba(255,255,255,.06)}
+    header .brand{ display:flex; gap:10px; align-items:center; font-weight:600}
+    header nav a{ color: var(--text); text-decoration:none; margin: 0 10px; opacity:.8 }
+    header nav a.active{ opacity:1; border-bottom:2px solid var(--accent); padding-bottom:4px}
+    main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 1px 2px rgba(0,0,0,.08)}
+    .muted { color: var(--muted); }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .col { flex: 1 1 280px; }
+    .kpi { font-size: 48px; font-weight:700 }
+    .btn { background: var(--accent); color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer }
+    .btn.ghost{ background:transparent; border:1px solid rgba(255,255,255,.15); color:var(--text)}
+    input, select{ background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 8px }
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ padding:10px; border-bottom:1px solid rgba(255,255,255,.08)}
+    .pill{ padding:2px 8px; border-radius:999px; font-size:12px; }
+    .sev-low{ background:#0b5134; color:#8ff0c3 }
+    .sev-medium{ background:#473700; color:#f8e08e }
+    .sev-high{ background:#4a0d0d; color:#ffb4b4 }
+    .sev-critical{ background:#4a0d0d; color:#ffb4b4; border:1px solid var(--crit)}
+    .right{ text-align:right }
+    .flex{ display:flex; gap:8px; align-items:center }
+  </style>
+  <script>
+    const qs = (s)=>document.querySelector(s);
+    const qsa = (s)=>Array.from(document.querySelectorAll(s));
+    const state = {
+      api: localStorage.getItem('API_BASE') || 'http://localhost:8000',
+      token: localStorage.getItem('TOKEN') || '',
+      theme: localStorage.getItem('THEME') || 'dark',
+      tab: 'home'
+    };
+    document.documentElement.setAttribute('data-theme', state.theme);
+    function setTheme(t){ state.theme=t; localStorage.setItem('THEME', t); document.documentElement.setAttribute('data-theme', t) }
+    function saveCfg(){
+      state.api = qs('#api').value.trim();
+      state.token = qs('#token').value.trim();
+      localStorage.setItem('API_BASE', state.api);
+      localStorage.setItem('TOKEN', state.token);
+      load();
+    }
+    async function doLogin(){
+      const email = qs('#login-email').value.trim();
+      const password = qs('#login-pass').value.trim();
+      const r = await fetch(`${state.api}/auth/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password})});
+      if(!r.ok){ alert('Falha no login'); return; }
+      const data = await r.json();
+      state.token = data.token; localStorage.setItem('TOKEN', state.token);
+      qs('#login').style.display='none';
+      load();
+    }
+    async function apiGet(path){
+      const r = await fetch(`${state.api}${path}`, { headers: { 'Authorization': `Bearer ${state.token}` }});
+      if(!r.ok) throw new Error(`${r.status}`);
+      return r.json();
+    }
+    async function apiPost(path, body){
+      const r = await fetch(`${state.api}${path}`, { method:'POST', headers: { 'Authorization': `Bearer ${state.token}`, 'Content-Type':'application/json' }, body: JSON.stringify(body||{}) });
+      if(!r.ok) throw new Error(`${r.status}`);
+      return r.json();
+    }
+    function setTab(t){ state.tab=t; qsa('header nav a').forEach(a=>a.classList.toggle('active', a.dataset.tab===t)); qsa('section.view').forEach(s=>s.style.display = (s.id===t? 'block': 'none')); }
+    async function load(){
+      qs('#api').value = state.api; qs('#token').value = state.token;
+      try{
+        const [score, incidents, assets, reports, checklist] = await Promise.all([
+          apiGet('/v1/score'), apiGet('/v1/incidents'), apiGet('/v1/assets'), apiGet('/v1/reports'), apiGet('/v1/checklist')
+        ]);
+        qs('#score').textContent = score.score;
+        renderIncidents(incidents.items||[]);
+        renderAssets(assets.items||[]);
+        renderReports(reports.items||[]);
+        renderChecklist(checklist.items||[]);
+      }catch(e){ console.error(e); }
+    }
+    async function toggleChecklist(key){ await apiPost(`/v1/checklist/${encodeURIComponent(key)}/done`); load(); }
+    function renderChecklist(items){
+      const box = qs('#checklist-list'); box.innerHTML='';
+      if(items.length===0){ box.innerHTML = '<div class="muted">Nenhuma recomendação no momento.</div>'; return; }
+      items.forEach(c=>{
+        const div = document.createElement('div');
+        div.className = 'card flex';
+        div.style.justifyContent='space-between';
+        const action = c.done ? '<span class="pill sev-low">Feito</span>' : `<button class='btn' onclick='toggleChecklist("${c.key}")'>Marcar como feito</button>`;
+        div.innerHTML = `<div>${c.title}</div><div>${action}</div>`;
+        box.appendChild(div);
+      })
+    }
+    function renderIncidents(items){
+      const tbody = qs('#inc-tbody'); tbody.innerHTML='';
+      items.forEach(i=>{
+        const tr=document.createElement('tr');
+        const sevClass = `sev-${(i.severity||'low').toLowerCase()}`;
+        tr.innerHTML = `
+          <td>${i.kind}</td>
+          <td><span class="pill ${sevClass}">${i.severity||''}</span></td>
+          <td>${i.count}</td>
+          <td>${(i.context&&i.context.host)||''}</td>
+          <td>${i.last_seen}</td>
+          <td class="right">
+            <button class="btn ghost" data-id="${i.id}">Reconhecer</button>
+            ${i.kind==='brute_force' && i.context && i.context.src_ip ? `<button class="btn" style="margin-left:6px" onclick="blockIP('${i.context.src_ip}')">Bloquear IP</button>`:''}
+          </td>
+        `;
+        tr.querySelector('button').onclick = async ()=>{ await apiPost(`/v1/incidents/${i.id}/ack`); tr.style.opacity=.6; };
+        tbody.appendChild(tr);
+      })
+    }
+    async function blockIP(ip){
+      if(!confirm(`Bloquear IP ${ip}?`)) return;
+      await apiPost('/v1/actions/block_ip', {ip, provider:'cloudflare'});
+      alert('Solicitado bloqueio do IP.');
+    }
+    function renderAssets(items){
+      const tbody = qs('#asset-tbody'); tbody.innerHTML='';
+      items.forEach(a=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `
+          <td>${a.host}</td>
+          <td>${a.os||''}</td>
+          <td>${a.agent_id||''}</td>
+          <td>${a.last_seen_at||''}</td>
+        `;
+        tbody.appendChild(tr);
+      })
+    }
+    function renderReports(items){
+      const tbody = qs('#rep-tbody'); tbody.innerHTML='';
+      items.forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.period_start.substring(0,10)} — ${r.period_end.substring(0,10)}</td>
+          <td>${r.score ?? ''}</td>
+          <td class="right"><a class="btn" href="${state.api}${r.url_html}" target="_blank">Abrir</a></td>
+        `;
+        tbody.appendChild(tr);
+      })
+    }
+    async function generateReport(){
+      const res = await apiGet('/v1/reports/latest');
+      await load();
+      window.open(`${state.api}${res.url_html}`, '_blank');
+    }
+    function applyFilters(){
+      const sev = qs('#f-sev').value; const host = qs('#f-host').value; const since = qs('#f-since').value; const until = qs('#f-until').value;
+      const q = new URLSearchParams(); if(sev) q.set('severity', sev); if(host) q.set('host', host); if(since) q.set('since', since); if(until) q.set('until', until);
+      apiGet(`/v1/incidents/search?${q.toString()}`).then(d=>renderIncidents(d.items||[]));
+    }
+    window.addEventListener('DOMContentLoaded', ()=>{ setTab('home'); if(!state.token){ qs('#login').style.display='block'; } load(); });
+  </script>
+  </head>
+<body>
+  <div id="login" style="display:none; position:fixed; inset:0; background: rgba(0,0,0,.6); backdrop-filter: blur(2px)">
+    <div class="card" style="max-width:420px; margin:10% auto; background: var(--panel)">
+      <h3 style="margin-top:0">Entrar</h3>
+      <div class="muted">Use seu e‑mail e senha</div>
+      <div class="row" style="margin-top:12px">
+        <div class="col"><input id="login-email" placeholder="email" style="width:100%"></div>
+      </div>
+      <div class="row"><div class="col"><input id="login-pass" type="password" placeholder="senha" style="width:100%"></div></div>
+      <div class="flex" style="justify-content:flex-end"><button class="btn" onclick="doLogin()">Entrar</button></div>
+      <div class="muted" style="margin-top:8px">Ou configure um token manualmente na aba Config.</div>
+    </div>
+  </div>
+  <header>
+    <div class="brand">DigitalSec</div>
+    <nav>
+      <a href="#" data-tab="home" class="active" onclick="setTab('home')">Home</a>
+      <a href="#" data-tab="incidentes" onclick="setTab('incidentes')">Incidentes</a>
+      <a href="#" data-tab="ativos" onclick="setTab('ativos')">Ativos</a>
+      <a href="#" data-tab="relatorios" onclick="setTab('relatorios')">Relatórios</a>
+      <a href="#" data-tab="checklist" onclick="setTab('checklist')">Checklist</a>
+      <a href="#" data-tab="config" onclick="setTab('config')">Config</a>
+    </nav>
+    <div class="flex">
+      <button class="btn ghost" onclick="setTheme(state.theme==='dark'?'light':'dark')">Tema: <span id="theme-label">alternar</span></button>
+    </div>
+  </header>
+  <main>
+    <section id="home" class="view">
+      <div class="row">
+        <div class="col card">
+          <div class="muted">Nota de Segurança</div>
+          <div class="kpi" id="score">--</div>
+          <div class="muted">Janela padrão de 7 dias</div>
+        </div>
+        <div class="col card">
+          <div class="muted">Ações</div>
+          <div class="flex">
+            <button class="btn" onclick="generateReport()">Gerar Relatório</button>
+            <button class="btn ghost" onclick="load()">Atualizar</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex" style="justify-content:space-between">
+          <h3 style="margin:0">Incidentes Recentes</h3>
+          <div class="muted">Últimos 200</div>
+        </div>
+        <table>
+          <thead><tr><th>Tipo</th><th>Severidade</th><th>Ocorrências</th><th>Host</th><th>Último</th><th></th></tr></thead>
+          <tbody id="inc-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="incidentes" class="view" style="display:none">
+      <div class="card">
+        <div class="flex" style="gap:12px">
+          <select id="f-sev">
+            <option value="">Severidade (todas)</option>
+            <option>low</option><option>medium</option><option>high</option><option>critical</option>
+          </select>
+          <input id="f-host" placeholder="Host"/>
+          <input id="f-since" type="datetime-local"/>
+          <input id="f-until" type="datetime-local"/>
+          <button class="btn" onclick="applyFilters()">Aplicar</button>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Tipo</th><th>Severidade</th><th>Ocorrências</th><th>Host</th><th>Último</th><th></th></tr></thead>
+          <tbody id="inc-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ativos" class="view" style="display:none">
+      <div class="card">
+        <table>
+          <thead><tr><th>Host</th><th>SO</th><th>Agente</th><th>Último Heartbeat</th></tr></thead>
+          <tbody id="asset-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="relatorios" class="view" style="display:none">
+      <div class="card flex" style="justify-content:space-between">
+        <div>
+          <h3 style="margin:0">Relatórios</h3>
+          <div class="muted">Histórico recente</div>
+        </div>
+        <div><button class="btn" onclick="generateReport()">Gerar agora</button></div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Período</th><th>Nota</th><th class="right">Ação</th></tr></thead>
+          <tbody id="rep-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="checklist" class="view" style="display:none">
+      <div class="card">
+        <h3 style="margin:0">Checklist de Ações</h3>
+      </div>
+      <div id="checklist-list"></div>
+    </section>
+
+    <section id="config" class="view" style="display:none">
+      <div class="card">
+        <div class="row">
+          <div class="col">
+            <div class="muted">API Base</div>
+            <input id="api" size="40"/>
+          </div>
+          <div class="col">
+            <div class="muted">Token</div>
+            <input id="token" size="40"/>
+          </div>
+        </div>
+        <div style="margin-top:12px"><button class="btn" onclick="saveCfg()">Salvar</button></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
