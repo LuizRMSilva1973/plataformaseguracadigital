@@ -14,3 +14,4 @@ PyJWT>=2.8
 passlib[bcrypt]>=1.7
 pytest>=7.4
 rq>=1.15
+alembic>=1.13

@@ -19,10 +19,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install httpx
+          pip install alembic
       - name: Run tests
         env:
           ENABLE_SCHEDULER: '0'
           PYTHONPATH: .
         run: |
+          alembic upgrade head
           pytest -q
-

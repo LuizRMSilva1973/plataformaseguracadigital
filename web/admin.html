@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>DigitalSec — Admin</title>
+  <style>body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e6edf3}main{max-width:900px;margin:0 auto;padding:20px}.card{background:#121a2b;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:16px;margin:12px 0}.row{display:flex;gap:8px;flex-wrap:wrap}.col{flex:1 1 200px}input,select{background:transparent;color:#e6edf3;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:6px 8px;width:100%}.btn{background:#4f8cff;border:none;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}</style>
+  <script>
+    const qs=(s)=>document.querySelector(s);
+    let API=localStorage.getItem('API_BASE')||'http://localhost:8000';
+    let SECRET=localStorage.getItem('API_SECRET')||'';
+    function save(){ API=qs('#api').value; SECRET=qs('#secret').value; localStorage.setItem('API_BASE',API); localStorage.setItem('API_SECRET',SECRET); load(); }
+    async function adminGet(path){ const r=await fetch(`${API}${path}`,{headers:{'X-API-Secret':SECRET}}); if(!r.ok) throw new Error(r.status); return r.json(); }
+    async function adminPost(path,body){ const r=await fetch(`${API}${path}`,{method:'POST',headers:{'X-API-Secret':SECRET,'Content-Type':'application/json'},body:JSON.stringify(body||{})}); if(!r.ok) throw new Error(r.status); return r.json(); }
+    async function createTenant(){
+      const name=qs('#t-name').value; const plan=qs('#t-plan').value; const email=qs('#t-email').value;
+      const data=await adminPost('/admin/tenants',{name,plan,alert_email:email}); alert(`Tenant criado. Token: ${data.ingest_token}`); load(); }
+    async function rotate(){ const id=qs('#t-id').value; const data=await adminPost(`/admin/tenants/${encodeURIComponent(id)}/rotate-token`); alert(`Novo token: ${data.ingest_token}`); load(); }
+    async function setEmail(){ const id=qs('#t-id2').value; const email=qs('#t-email2').value; await adminPost(`/admin/tenants/${encodeURIComponent(id)}/alert-email`,{alert_email:email}); alert('Atualizado'); load(); }
+    async function load(){ qs('#api').value=API; qs('#secret').value=SECRET; try{ const list=await adminGet('/admin/tenants'); const tbody=qs('#tenants'); tbody.innerHTML=''; list.forEach(t=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${t.id}</td><td>${t.name}</td><td>${t.plan}</td><td>${t.status}</td><td>${t.alert_email||''}</td>`; tbody.appendChild(tr); }); }catch(e){ console.error(e);} }
+    window.addEventListener('DOMContentLoaded',load);
+  </script>
+</head>
+<body>
+  <main>
+    <h2>Admin DigitalSec</h2>
+    <div class="card">
+      <div class="row">
+        <div class="col"><input id="api" placeholder="API Base"/></div>
+        <div class="col"><input id="secret" placeholder="X-API-Secret"/></div>
+        <div class="col" style="flex:0 0 auto"><button class="btn" onclick="save()">Salvar</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Criar Tenant</h3>
+      <div class="row">
+        <div class="col"><input id="t-name" placeholder="Nome"/></div>
+        <div class="col"><select id="t-plan"><option>starter</option><option>pro</option><option>business</option><option>enterprise</option></select></div>
+        <div class="col"><input id="t-email" placeholder="E-mail alertas (opcional)"/></div>
+        <div class="col" style="flex:0 0 auto"><button class="btn" onclick="createTenant()">Criar</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Gerenciar Tenant</h3>
+      <div class="row">
+        <div class="col"><input id="t-id" placeholder="Tenant ID"/></div>
+        <div class="col" style="flex:0 0 auto"><button class="btn" onclick="rotate()">Rotacionar Token</button></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="col"><input id="t-id2" placeholder="Tenant ID"/></div>
+        <div class="col"><input id="t-email2" placeholder="Novo e-mail de alertas"/></div>
+        <div class="col" style="flex:0 0 auto"><button class="btn" onclick="setEmail()">Atualizar E-mail</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Tenants</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th>ID</th><th>Nome</th><th>Plano</th><th>Status</th><th>E-mail</th></tr></thead>
+        <tbody id="tenants"></tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
+
