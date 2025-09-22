@@ -62,9 +62,17 @@ if os.getenv("ENABLE_SCHEDULER", "0").lower() in ("1", "true", "yes"):
             with SessionLocal() as db:
                 rows = db.execute(select(Tenant)).scalars().all()
                 from reports.generate_report import generate as gen
+                auto_email = os.getenv("REPORT_AUTO_EMAIL", "1").lower() in ("1","true","yes")
                 for t in rows:
                     try:
+                        # sempre gera e registra
                         gen(t.id, out_dir="./data/reports")
+                        # envia se configurado
+                        if auto_email and t.alert_email:
+                            try:
+                                generate_and_send_latest(db, t.id)
+                            except Exception:
+                                pass
                     except Exception:
                         pass
         scheduler.add_job(daily_reports, 'interval', hours=24, id='daily_reports', replace_existing=True)
