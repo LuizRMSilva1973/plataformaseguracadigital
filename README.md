@@ -68,6 +68,14 @@ Docker Compose (API + Postgres)
 - `docker-compose up --build`
 - API em `http://localhost:8000`, banco Postgres persistido em volume `dbdata`.
 
+Produção (compose.prod)
+- `docker-compose -f docker-compose.prod.yml up -d --build`
+- Serviços: `db` (Postgres), `redis`, `api` (com scheduler e e‑mail habilitados) e `worker` (RQ) para ingest distribuído.
+- Ajuste `.env`/variáveis conforme necessidade (SMTP_*, REPORT_PDF=true, ENABLE_SCHEDULER=1, REPORT_AUTO_EMAIL=true, SCHEDULER_INTERVAL_MINUTES=1440, REDIS_URL, etc.).
+
+Staging (intervalo horário)
+- Defina `SCHEDULER_INTERVAL_MINUTES=60` para enviar relatórios a cada hora em staging.
+
 Agendamentos
 - Job diário de geração de relatórios (APScheduler) embutido no processo da API. Em ambientes com múltiplas réplicas, adotar um scheduler único/externo.
 
@@ -78,3 +86,4 @@ Notificações
 CI
 - GitHub Actions executa testes (pytest) a cada push/PR em `main`.
 - Build Docker (sem push) para validar a imagem em cada push/PR.
+ - Release: ao criar tags `v*`, o workflow publica a imagem no GHCR com tag da versão e `latest`, e cria um GitHub Release.

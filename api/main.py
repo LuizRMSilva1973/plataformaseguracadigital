@@ -75,7 +75,8 @@ if os.getenv("ENABLE_SCHEDULER", "0").lower() in ("1", "true", "yes"):
                                 pass
                     except Exception:
                         pass
-        scheduler.add_job(daily_reports, 'interval', hours=24, id='daily_reports', replace_existing=True)
+        interval_minutes = int(os.getenv("SCHEDULER_INTERVAL_MINUTES", "1440"))
+        scheduler.add_job(daily_reports, 'interval', minutes=interval_minutes, id='daily_reports', replace_existing=True)
         scheduler.start()
     except Exception:
         scheduler = None

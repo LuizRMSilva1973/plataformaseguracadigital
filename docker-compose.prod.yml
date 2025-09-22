@@ -1,0 +1,58 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-digitalsec}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-digitalsec}
+      API_SECRET: ${API_SECRET:-change-me}
+      INGEST_RATE_LIMIT_PER_MIN: ${INGEST_RATE_LIMIT_PER_MIN:-600}
+      SCORE_DEFAULT_WINDOW_DAYS: ${SCORE_DEFAULT_WINDOW_DAYS:-7}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      ABUSEIPDB_KEY: ${ABUSEIPDB_KEY:-}
+      IPINFO_KEY: ${IPINFO_KEY:-}
+      SHODAN_KEY: ${SHODAN_KEY:-}
+      IP_REP_TTL_SEC: ${IP_REP_TTL_SEC:-86400}
+      REDIS_URL: redis://redis:6379/0
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-1}
+      REPORT_AUTO_EMAIL: ${REPORT_AUTO_EMAIL:-true}
+      SCHEDULER_INTERVAL_MINUTES: ${SCHEDULER_INTERVAL_MINUTES:-1440}
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+
+  worker:
+    build: .
+    command: sh -c "rq worker -u $REDIS_URL ingest"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-digitalsec}
+    depends_on:
+      - redis
+      - db
+
+volumes:
+  dbdata:
+
