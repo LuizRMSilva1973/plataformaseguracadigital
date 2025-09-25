@@ -236,10 +236,14 @@ def list_incidents(tenant: Tenant = Depends(require_tenant), db: Session = Depen
 async def login(payload: dict, db: Session = Depends(get_db)):
     email = payload.get("email")
     password = payload.get("password")
+    tenant_id = payload.get("tenant_id")
     if not email or not password:
         raise HTTPException(status_code=400, detail="missing email/password")
     from .models import User
-    user = db.query(User).filter_by(email=email, status="active").first()
+    if tenant_id:
+        user = db.query(User).filter_by(email=email, tenant_id=tenant_id, status="active").first()
+    else:
+        user = db.query(User).filter_by(email=email, status="active").first()
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="invalid credentials")
     token = create_jwt(user.tenant_id, user.id, user.role)

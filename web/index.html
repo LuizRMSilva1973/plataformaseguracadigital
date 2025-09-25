@@ -58,7 +58,9 @@
     async function doLogin(){
       const email = qs('#login-email').value.trim();
       const password = qs('#login-pass').value.trim();
-      const r = await fetch(`${state.api}/auth/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password})});
+      const tenant = qs('#login-tenant').value.trim();
+      const body = tenant ? {email, password, tenant_id: tenant} : {email, password};
+      const r = await fetch(`${state.api}/auth/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
       if(!r.ok){ alert('Falha no login'); return; }
       const data = await r.json();
       state.token = data.token; localStorage.setItem('TOKEN', state.token);
@@ -174,6 +176,9 @@
         <div class="col"><input id="login-email" placeholder="email" style="width:100%"></div>
       </div>
       <div class="row"><div class="col"><input id="login-pass" type="password" placeholder="senha" style="width:100%"></div></div>
+      <div class="row" style="margin-top:8px">
+        <div class="col"><input id="login-tenant" placeholder="tenant (opcional)" style="width:100%"></div>
+      </div>
       <div class="flex" style="justify-content:flex-end"><button class="btn" onclick="doLogin()">Entrar</button></div>
       <div class="muted" style="margin-top:8px">Ou configure um token manualmente na aba Config.</div>
     </div>
