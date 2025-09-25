@@ -39,15 +39,19 @@ def on_startup():
             demo = Tenant(id="demo", name="Demo Org", plan="starter", ingest_token="demo-token", status="active")
             db.add(demo)
             db.commit()
-        # Seed default user if ADMIN_EMAIL/PASSWORD env present
+        # Seed default user
         admin_email = os.getenv("ADMIN_EMAIL")
         admin_password = os.getenv("ADMIN_PASSWORD")
+        from .models import User
+        # If ADMIN_* provided, ensure that user exists; otherwise, if there are no users at all, create a sensible default for local dev
         if admin_email and admin_password:
-            # ensure user on demo tenant
-            from .models import User
             user = db.query(User).filter_by(email=admin_email).first()
             if not user:
                 create_user(db, tenant_id="demo", email=admin_email, password=admin_password, role="org_admin")
+        else:
+            # Bootstrap a default admin only if there are no users yet
+            if db.query(User).count() == 0:
+                create_user(db, tenant_id="demo", email="admin@local", password="admin123", role="org_admin")
     # Prepare static dir for reports
     os.makedirs("data/reports", exist_ok=True)
 
@@ -488,6 +492,26 @@ async def set_alert_email(tenant_id: str, payload: dict, _: bool = Depends(requi
     t.alert_email = payload.get("alert_email")
     db.commit()
     return {"ok": True}
+
+
+@app.post("/admin/users")
+async def admin_create_user(payload: dict, _: bool = Depends(require_admin), db: Session = Depends(get_db)):
+    # Create a user under a tenant (admin only via X-API-Secret)
+    tenant_id = payload.get("tenant_id") or "demo"
+    email = payload.get("email")
+    password = payload.get("password")
+    role = payload.get("role", "viewer")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="email and password are required")
+    t = db.get(Tenant, tenant_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="tenant not found")
+    from .models import User
+    exists = db.query(User).filter_by(tenant_id=tenant_id, email=email).first()
+    if exists:
+        raise HTTPException(status_code=409, detail="user already exists")
+    u = create_user(db, tenant_id=tenant_id, email=email, password=password, role=role)
+    return {"id": u.id, "tenant_id": u.tenant_id, "email": u.email, "role": u.role, "status": u.status}
 
 
 # Minimal rules module inline import fallback

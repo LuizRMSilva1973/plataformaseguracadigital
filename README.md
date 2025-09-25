@@ -12,11 +12,22 @@ Componentes
 - `web/`: Painel web (SPA estático) com abas Home/Incidentes/Ativos/Relatórios/Config, filtros e tema claro/escuro.
 
 Como rodar (desenvolvimento)
-1) Pré-requisitos: Python 3.10+, `pip` (ou Docker).
-2) Dependências: `pip install -r requirements.txt`
-3) (Opcional) `.env`: copie `.env.example` para `.env` e ajuste `DATABASE_URL`/`API_SECRET`. Para autenticação do painel, defina `ADMIN_EMAIL` e `ADMIN_PASSWORD` (cria usuário automaticamente no tenant demo).
-4) API: `uvicorn api.main:app --reload --port 8000`
-5) Painel: abra `web/index.html` (configure API `http://localhost:8000` e Token `demo-token`).
+- Pré‑requisitos: Python 3.10+, `pip` (ou Docker).
+- Início rápido (local, SQLite):
+  - `scripts/start.sh --daemon`
+  - API em `http://localhost:8000` (docs em `/docs`)
+  - Painel em `http://localhost:5500` (porta autoajustada se ocupada)
+  - Parar: `scripts/stop.sh`
+- Variáveis úteis no start local:
+  - `API_PORT=8001 scripts/start.sh --daemon`
+  - `WEB_PORT=5600 scripts/start.sh --daemon` ou `scripts/start.sh --daemon --web-port=5600`
+  - O script escolhe automaticamente uma porta livre entre 5500–5599 quando `WEB_PORT` não é informado.
+
+Credenciais (painel)
+- Usuário padrão: `admin@local`
+- Senha padrão: `admin123`
+- Alternativa sem login: token `demo-token` (Config do painel).
+  - Login é criado no tenant `demo` no startup quando `ADMIN_EMAIL`/`ADMIN_PASSWORD` estão no ambiente.
 
 Docker
 - Build: `docker build -t digitalsec-api .`
@@ -65,8 +76,12 @@ Relatórios (HTML/PDF)
 - A imagem Docker já instala as libs necessárias (libcairo, pango, gdk-pixbuf, fontes).
 
 Docker Compose (API + Postgres)
-- `docker-compose up --build`
-- API em `http://localhost:8000`, banco Postgres persistido em volume `dbdata`.
+- Scripts:
+  - Subir (dev): `scripts/start-compose.sh`
+  - Subir (prod): `scripts/start-compose.sh --prod`
+  - Rebuild: `scripts/start-compose.sh --rebuild`
+  - Parar: `scripts/stop-compose.sh` (use `--prod` para prod; `--purge` para limpar volumes)
+- Healthchecks: `db`, `redis` (prod) e `api` têm healthchecks; `api` só inicia quando `db` estiver saudável.
 
 Produção (compose.prod)
 - `docker-compose -f docker-compose.prod.yml up -d --build`

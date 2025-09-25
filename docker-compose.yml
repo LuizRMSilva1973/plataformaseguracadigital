@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   db:
-    image: postgres:15
+    image: docker.io/library/postgres:15
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: digitalsec
@@ -9,12 +9,20 @@ services:
       - dbdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   api:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/digitalsec
       API_SECRET: ${API_SECRET:-change-me}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       INGEST_RATE_LIMIT_PER_MIN: ${INGEST_RATE_LIMIT_PER_MIN:-600}
       SCORE_DEFAULT_WINDOW_DAYS: ${SCORE_DEFAULT_WINDOW_DAYS:-7}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -27,12 +35,18 @@ services:
       SHODAN_KEY: ${SHODAN_KEY:-}
       IP_REP_TTL_SEC: ${IP_REP_TTL_SEC:-86400}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys;\n\nurl=\"http://127.0.0.1:8000/docs\"\ntry:\n r=urllib.request.urlopen(url, timeout=2); sys.exit(0 if 200<=r.status<500 else 1)\nexcept Exception:\n sys.exit(1)' "]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   dbdata:
-

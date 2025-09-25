@@ -50,6 +50,11 @@
       localStorage.setItem('TOKEN', state.token);
       load();
     }
+    function logout(){
+      state.token='';
+      localStorage.removeItem('TOKEN');
+      qs('#login').style.display='block';
+    }
     async function doLogin(){
       const email = qs('#login-email').value.trim();
       const password = qs('#login-pass').value.trim();
@@ -185,6 +190,7 @@
     </nav>
     <div class="flex">
       <button class="btn ghost" onclick="setTheme(state.theme==='dark'?'light':'dark')">Tema: <span id="theme-label">alternar</span></button>
+      <button class="btn ghost" style="margin-left:8px" onclick="logout()">Sair</button>
     </div>
   </header>
   <main>
