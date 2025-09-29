@@ -2,24 +2,26 @@ from logging.config import fileConfig
 import os
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+from api.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
-    url = os.getenv('DATABASE_URL', config.get_main_option("sqlalchemy.url"))
+    url = os.getenv('DATABASE_URL', "sqlite:///./data/app.db")
     context.configure(url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"})
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = os.getenv('DATABASE_URL', configuration.get("sqlalchemy.url"))
+    configuration = {
+        "sqlalchemy.url": os.getenv('DATABASE_URL', "sqlite:///./data/app.db")
+    }
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",

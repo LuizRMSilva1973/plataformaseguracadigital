@@ -89,6 +89,8 @@
         renderAssets(assets.items||[]);
         renderReports(reports.items||[]);
         renderChecklist(checklist.items||[]);
+        // Se carregou com sucesso (modo público), esconda o modal de login
+        const loginEl = qs('#login'); if(loginEl) loginEl.style.display='none';
       }catch(e){ console.error(e); }
     }
     async function toggleChecklist(key){ await apiPost(`/v1/checklist/${encodeURIComponent(key)}/done`); load(); }

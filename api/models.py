@@ -15,6 +15,7 @@ class Tenant(Base):
     integrations_json = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     users = relationship("User", back_populates="tenant")
+    subscription = relationship("Subscription", back_populates="tenant", uselist=False)
 
 
 class User(Base):
@@ -122,13 +123,32 @@ class Notification(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+
+class Plan(Base):
+    __tablename__ = "plans"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    price = Column(Integer, nullable=False)  # In cents
+    stripe_price_id = Column(String, nullable=False, unique=True)
+    features = Column(JSON, nullable=True)
+
+
 class Subscription(Base):
     __tablename__ = "subscriptions"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False)
-    provider = Column(String, nullable=False)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, unique=True)
+    plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False)
+    provider = Column(String, nullable=False, default="stripe")
+    stripe_customer_id = Column(String, nullable=False, unique=True)
+    stripe_subscription_id = Column(String, nullable=False, unique=True)
     status = Column(String, nullable=False)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="subscription")
+    plan = relationship("Plan")
+
 
 
 class AuditLog(Base):

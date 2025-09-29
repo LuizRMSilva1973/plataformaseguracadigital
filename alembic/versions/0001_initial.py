@@ -46,7 +46,8 @@ def upgrade() -> None:
         sa.Column('batch_id', sa.String(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
     )
-    op.create_unique_constraint('uq_batch', 'ingest_batches', ['tenant_id', 'agent_id', 'batch_id'])
+    with op.batch_alter_table('ingest_batches', schema=None) as batch_op:
+        batch_op.create_unique_constraint('uq_batch', ['tenant_id', 'agent_id', 'batch_id'])
 
     op.create_table('events',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
@@ -102,7 +103,8 @@ def upgrade() -> None:
         sa.Column('last_seen_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('agent_id', sa.String(), nullable=True),
     )
-    op.create_unique_constraint('uq_asset_tenant_host', 'assets', ['tenant_id', 'host'])
+    with op.batch_alter_table('assets', schema=None) as batch_op:
+        batch_op.create_unique_constraint('uq_asset_tenant_host', ['tenant_id', 'host'])
 
     op.create_table('notifications',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
@@ -141,7 +143,8 @@ def upgrade() -> None:
         sa.Column('done', sa.Boolean(), nullable=False, server_default=sa.text('0')),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
     )
-    op.create_unique_constraint('uq_checklist_key', 'checklist_items', ['tenant_id', 'key'])
+    with op.batch_alter_table('checklist_items', schema=None) as batch_op:
+        batch_op.create_unique_constraint('uq_checklist_key', ['tenant_id', 'key'])
 
     op.create_table('blocked_ips',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
@@ -150,24 +153,29 @@ def upgrade() -> None:
         sa.Column('provider', sa.String(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
     )
-    op.create_unique_constraint('uq_blocked_ip', 'blocked_ips', ['tenant_id', 'ip', 'provider'])
+    with op.batch_alter_table('blocked_ips', schema=None) as batch_op:
+        batch_op.create_unique_constraint('uq_blocked_ip', ['tenant_id', 'ip', 'provider'])
 
 
 def downgrade() -> None:
-    op.drop_constraint('uq_blocked_ip', 'blocked_ips', type_='unique')
+    with op.batch_alter_table('blocked_ips', schema=None) as batch_op:
+        batch_op.drop_constraint('uq_blocked_ip', type_='unique')
     op.drop_table('blocked_ips')
-    op.drop_constraint('uq_checklist_key', 'checklist_items', type_='unique')
+    with op.batch_alter_table('checklist_items', schema=None) as batch_op:
+        batch_op.drop_constraint('uq_checklist_key', type_='unique')
     op.drop_table('checklist_items')
     op.drop_table('audit_logs')
     op.drop_table('subscriptions')
     op.drop_table('notifications')
-    op.drop_constraint('uq_asset_tenant_host', 'assets', type_='unique')
+    with op.batch_alter_table('assets', schema=None) as batch_op:
+        batch_op.drop_constraint('uq_asset_tenant_host', type_='unique')
     op.drop_table('assets')
     op.drop_table('reports')
     op.drop_table('ip_reputation_cache')
     op.drop_table('incidents')
     op.drop_table('events')
-    op.drop_constraint('uq_batch', 'ingest_batches', type_='unique')
+    with op.batch_alter_table('ingest_batches', schema=None) as batch_op:
+        batch_op.drop_constraint('uq_batch', type_='unique')
     op.drop_table('ingest_batches')
     op.drop_table('agents')
     op.drop_table('users')

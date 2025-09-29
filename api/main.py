@@ -18,8 +18,12 @@ from .reporting import generate_and_send_latest
 from .ratelimit import check_rate
 from .reputation import get_ip_reputation
 from .notifications import send_email
+from .dependencies import require_active_subscription
+from . import billing
 
 app = FastAPI(title="DigitalSec Platform API", version="0.1.0")
+
+app.include_router(billing.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +36,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    init_db()
+    
     # Seed a demo tenant if none
     with SessionLocal() as db:
         if not db.query(Tenant).count():
@@ -87,7 +91,7 @@ if os.getenv("ENABLE_SCHEDULER", "0").lower() in ("1", "true", "yes"):
 
 
 @app.post("/v1/agents/register")
-def register_agent(payload: AgentRegisterIn, tenant: Tenant = Depends(require_tenant), db: Session = Depends(get_db)):
+def register_agent(payload: AgentRegisterIn, tenant: Tenant = Depends(require_active_subscription), db: Session = Depends(get_db)):
     agent = db.get(Agent, payload.agent_id)
     now = datetime.utcnow()
     if agent:
@@ -237,14 +241,27 @@ async def login(payload: dict, db: Session = Depends(get_db)):
     email = payload.get("email")
     password = payload.get("password")
     tenant_id = payload.get("tenant_id")
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="missing email/password")
+    open_admin = os.getenv("ADMIN_OPEN_LOGIN", "0").lower() in ("1","true","yes")
+    disable_admin_pw = os.getenv("ADMIN_DISABLE_PASSWORD", "0").lower() in ("1","true","yes")
+    admin_email_env = os.getenv("ADMIN_EMAIL", "admin@local")
+    if not email:
+        raise HTTPException(status_code=400, detail="missing email")
     from .models import User
     if tenant_id:
         user = db.query(User).filter_by(email=email, tenant_id=tenant_id, status="active").first()
     else:
         user = db.query(User).filter_by(email=email, status="active").first()
-    if not user or not verify_password(password, user.password_hash):
+    if not user:
+        # If password is disabled and it's the configured admin email, bootstrap it
+        if disable_admin_pw and email == admin_email_env:
+            user = create_user(db, tenant_id or "demo", email, os.urandom(12).hex(), role="org_admin")
+        else:
+            raise HTTPException(status_code=401, detail="invalid credentials")
+    # Allow passwordless login when enabled via either flag
+    if (open_admin or disable_admin_pw) and (user.role == "org_admin"):
+        token = create_jwt(user.tenant_id, user.id, user.role)
+        return {"token": token, "tenant_id": user.tenant_id, "role": user.role}
+    if not password or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="invalid credentials")
     token = create_jwt(user.tenant_id, user.id, user.role)
     return {"token": token, "tenant_id": user.tenant_id, "role": user.role}
@@ -314,34 +331,7 @@ def get_score(tenant: Tenant = Depends(require_tenant), db: Session = Depends(ge
     return ScoreOut(score=score, window_days=window)
 
 
-# Simple billing webhooks (stubs)
-@app.post("/billing/webhook/stripe")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    # Simplificado: espera JSON {tenant_id, event}
-    # event in {"invoice.paid", "payment_failed", "subscription.deleted"}
-    body = await request.json()
-    tenant_id = body.get("tenant_id")
-    event = body.get("event")
-    if tenant_id and event:
-        tenant = db.get(Tenant, tenant_id)
-        if tenant:
-            sub = db.query(Subscription).filter_by(tenant_id=tenant.id, provider="stripe").first()
-            if not sub:
-                sub = Subscription(tenant_id=tenant.id, provider="stripe", status="inactive")
-                db.add(sub)
-            if event == "invoice.paid":
-                tenant.status = "active"
-                sub.status = "active"
-            elif event in ("payment_failed", "subscription.deleted"):
-                tenant.status = "past_due" if event == "payment_failed" else "canceled"
-                sub.status = "past_due" if event == "payment_failed" else "canceled"
-            db.commit()
-    return {"received": True}
 
-
-@app.post("/billing/webhook/pagarme")
-def pagarme_webhook():
-    return {"received": True}
 
 
 @app.get("/v1/reports/latest")

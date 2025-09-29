@@ -1,3 +1,4 @@
+import os
 from fastapi import Header, HTTPException, Depends
 from sqlalchemy.orm import Session
 from .database import SessionLocal
@@ -14,7 +15,17 @@ def get_db():
 
 
 def require_tenant(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> Tenant:
+    # Public mode: allow anonymous access under demo tenant
+    public_mode = os.getenv("PUBLIC_ALLOW_ANON", "0").lower() in ("1", "true", "yes")
     if not authorization or not authorization.lower().startswith("bearer "):
+        if public_mode:
+            tenant = db.get(Tenant, "demo")
+            if not tenant:
+                tenant = Tenant(id="demo", name="Demo Org", plan="starter", ingest_token="demo-token", status="active")
+                db.add(tenant)
+                db.commit()
+            if tenant and tenant.status == "active":
+                return tenant
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
     # Try JWT first (panel users)

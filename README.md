@@ -28,6 +28,7 @@ Credenciais (painel)
 - Senha padrão: `admin123`
 - Alternativa sem login: token `demo-token` (Config do painel).
   - Login é criado no tenant `demo` no startup quando `ADMIN_EMAIL`/`ADMIN_PASSWORD` estão no ambiente.
+  - Para facilitar troubleshooting em produção, você pode habilitar `ADMIN_OPEN_LOGIN=1` no `.env`. Quando ativo, usuários com `role=org_admin` podem logar sem senha (apenas com o e‑mail). Desligue após o acesso inicial.
 
 Docker
 - Build: `docker build -t digitalsec-api .`
@@ -35,6 +36,19 @@ Docker
 
 Banco de dados
 - Padrão: SQLite em `./data/app.db`. Para PostgreSQL: `export DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db`.
+- As migrações de banco de dados são gerenciadas pelo Alembic. Para aplicar as migrações, execute: `PYTHONPATH=. .venv/bin/alembic upgrade head`
+
+Cobrança (Stripe)
+- A integração com o Stripe foi adicionada para gerenciar assinaturas.
+- Configure suas chaves de API no arquivo `.env`:
+  - `STRIPE_API_KEY`: Sua chave secreta do Stripe.
+  - `STRIPE_WEBHOOK_SECRET`: O segredo para o seu endpoint de webhook do Stripe.
+- Crie seus produtos e preços no Painel do Stripe e atualize os `stripe_price_id` na tabela `plans`.
+- Um script para popular planos de exemplo foi adicionado: `seed_plans.py`.
+- Endpoints de API para cobrança:
+  - `POST /billing/create-checkout-session`: Cria uma sessão de checkout do Stripe.
+  - `POST /billing/create-portal-session`: Cria uma sessão do Portal do Cliente Stripe.
+  - `POST /billing/webhook/stripe`: Recebe webhooks do Stripe.
 
 Segurança (MVP)
 - Ingest por Bearer token (por tenant). Idempotência via `batch_id` e limiter por minuto.
